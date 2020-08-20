@@ -1,18 +1,26 @@
 version: '2'
 services:
 
-  bigfish-registry:
+  registry:
     image: bigfish-registry:1.0.0-SNAPSHOT
     ports:
       - "8761:8761"
-    container_name: bigfish-registry
-    hostname: bigfish-registry
+    container_name: registry
+    hostname: registry
     restart: always
     environment:
       server.port: 8761
-    networks:
-      - zkztch_network
 
-networks:
-  zkztch_network:
-    external: true
+  config:
+    image: bigfish-config:1.0.0-SNAPSHOT
+    ports:
+      - "8080:8080"
+    container_name: config
+    hostname: config
+    restart: always
+    environment:
+      eureka.client.service-url.defaultZone: http://root:root@registry:8761/eureka/
+      server.port: 8080
+    depends_on:
+      - registry
+

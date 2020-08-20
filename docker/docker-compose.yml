@@ -24,3 +24,15 @@ services:
     depends_on:
       - registry
 
+  monitor:
+    image: bigfish-monitor:1.0.0-SNAPSHOT
+    ports:
+      - "7801:8080"
+    container_name: monitor
+    hostname: monitor
+    restart: always
+    environment:
+      eureka.client.service-url.defaultZone: http://root:root@registry:8761/eureka/
+      server.port: 8080
+    depends_on:
+      - registry

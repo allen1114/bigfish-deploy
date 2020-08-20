@@ -21,6 +21,45 @@ services:
     environment:
       eureka.client.service-url.defaultZone: http://root:root@bigfish.registry:8761/eureka/
       server.port: 8080
+      spring.cloud.config.server.git.private-key: |
+        -----BEGIN OPENSSH PRIVATE KEY-----
+        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
+        -----END OPENSSH PRIVATE KEY-----
     depends_on:
       - bigfish.registry
 

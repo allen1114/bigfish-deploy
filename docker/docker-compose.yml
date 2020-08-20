@@ -1,0 +1,18 @@
+version: '2'
+services:
+
+  bigfish-registry:
+    image: bigfish-registry:1.0.0-SNAPSHOT
+    ports:
+      - "8761:8761"
+    container_name: bigfish-registry
+    hostname: bigfish-registry
+    restart: always
+    environment:
+      server.port: 8761
+    networks:
+      - zkztch_network
+
+networks:
+  zkztch_network:
+    external: true

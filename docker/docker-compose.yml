@@ -22,7 +22,7 @@ services:
       eureka.client.service-url.defaultZone: http://root:root@bigfish.registry:8761/eureka/
       server.port: 8080
     depends_on:
-      - registry
+      - bigfish.registry
 
   bigfish.monitor:
     image: bigfish-monitor:1.0.0-SNAPSHOT
@@ -35,4 +35,4 @@ services:
       eureka.client.service-url.defaultZone: http://root:root@bigfish.registry:8761/eureka/
       server.port: 8080
     depends_on:
-      - registry
+      - bigfish.registry

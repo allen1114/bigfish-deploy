@@ -1,6 +1,183 @@
 version: '2'
 services:
 
+  mysql:
+    image:  mysql:5.7
+    ports:
+      - "3306:3306"
+    restart: always
+    volumes:
+      - ${HOME}/.bigfish/mysql/mysql.conf.d:/etc/mysql/mysql.conf.d
+      - ${HOME}/.bigfish/mysql/datadir:/var/lib/mysql
+    container_name: mysql
+    hostname: mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+
+  mongo:
+    image: mongo:4.4-rc-bionic
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    ports:
+      - "27017:27017"
+    container_name: mongo
+    hostname: mongo
+    volumes:
+      - ${HOME}/.bigfish/mongo/data:/data/db
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    container_name: mongo-express
+    hostname: mongo-express
+    ports:
+      - "28081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: root
+
+  redis:
+    image:  redis:alpine
+    ports:
+      - "6379:6379"
+    restart: always
+    container_name: redis
+    hostname: redis
+
+  zoo1:
+    image: zookeeper
+    restart: always
+    container_name: zoo1
+    hostname: zoo1
+    ports:
+      - "21811:2181"
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=0.0.0.0:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+
+  zoo2:
+    image: zookeeper
+    restart: always
+    container_name: zoo2
+    hostname: zoo2
+    ports:
+      - "21812:2181"
+    environment:
+      ZOO_MY_ID: 2
+      ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=0.0.0.0:2888:3888;2181 server.3=zoo3:2888:3888;2181
+
+  zoo3:
+    image: zookeeper
+    restart: always
+    container_name: zoo3
+    hostname: zoo3
+    ports:
+      - "21813:2181"
+    environment:
+      ZOO_MY_ID: 3
+      ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=0.0.0.0:2888:3888;2181
+
+  broker1:
+    image: wurstmeister/kafka
+    restart: always
+    container_name: broker1
+    hostname: broker1
+    ports:
+      - "9192:9092"
+    depends_on:
+      - zoo1
+      - zoo2
+      - zoo3
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zoo1:2181,zoo2:2181,zoo3:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.1.144:9192
+
+  broker2:
+    image: wurstmeister/kafka
+    restart: always
+    container_name: broker2
+    hostname: broker2
+    ports:
+      - "9292:9092"
+    depends_on:
+      - zoo1
+      - zoo2
+      - zoo3
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zoo1:2181,zoo2:2181,zoo3:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.1.144:9292
+
+  broker3:
+    image: wurstmeister/kafka
+    restart: always
+    container_name: broker3
+    hostname: broker3
+    ports:
+      - "9392:9092"
+    depends_on:
+      - zoo1
+      - zoo2
+      - zoo3
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zoo1:2181,zoo2:2181,zoo3:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.1.144:9392
+
+  kafka-manager:
+    image: sheepkiller/kafka-manager
+    container_name: kafka-manager
+    hostname: kafka-manager
+    restart: always
+    depends_on:
+      - zoo1
+      - zoo2
+      - zoo3
+    environment:
+      - ZK_HOSTS=zoo1:2181,zoo2:2181,zoo3:2181
+    ports:
+      - "9000:9000"
+
+  elasticsearch:
+    image: elasticsearch:7.8.1
+    container_name: elasticsearch
+    hostname: elasticsearch
+    environment:
+      - discovery.type=single-node
+    ports:
+      - 9200:9200
+      - 9300:9300
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    hostname: zipkin
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: broker1:9092,broker2:9092,broker3:9092
+      KAFKA_TOPIC: zipkin
+      KAFKA_GROUP_ID: zipkin
+      KAFKA_STREAMS: 1
+      STORAGE_TYPE: mem
+    ports:
+      - 9411:9411
+
+  seata:
+    image: seataio/seata-server:latest
+    container_name: seata
+    hostname: seata
+    ports:
+      - 8091:8091
+    environment:
+      - SEATA_PORT=8091
+    expose:
+      - 8091
+
   bigfish.registry:
     image: bigfish-registry:1.0.0-SNAPSHOT
     ports:
@@ -10,6 +187,22 @@ services:
     restart: always
     environment:
       server.port: 8761
+      bigfish.security.registry.username: root
+      bigfish.security.registry.password: root
+      bigfish.security.actuator.username: root
+      bigfish.security.actuator.password: root
+      spring.boot.admin.client.username: root
+      spring.boot.admin.client.password: root
+    depends_on:
+      - mysql
+      - mongo
+      - redis
+      - broker1
+      - broker2
+      - broker3
+      - seata
+      - elasticsearch
+      - zipkin
 
   bigfish.config:
     image: bigfish-config:1.0.0-SNAPSHOT
@@ -21,6 +214,15 @@ services:
     environment:
       eureka.client.service-url.defaultZone: http://root:root@bigfish.registry:8761/eureka/
       server.port: 8080
+      bigfish.security.config.username: root
+      bigfish.security.config.password: root
+      bigfish.security.actuator.username: root
+      bigfish.security.actuator.password: root
+      spring.boot.admin.client.username: root
+      spring.boot.admin.client.password: root
+      spring.cloud.config.server.git.uri: git@github.com:allen1114/bigfish-config.git
+      spring.cloud.config.server.git.default-label: master
+      spring.cloud.config.server.git.search-paths: /config
       spring.cloud.config.server.git.private-key: |
         -----BEGIN RSA PRIVATE KEY-----
         MIIEpAIBAAKCAQEArcz1/5OBaPEJi1KTB0gQwF9iyd9bZrutrTascPyaJ9JuIhAi
@@ -62,5 +264,25 @@ services:
     environment:
       eureka.client.service-url.defaultZone: http://root:root@bigfish.registry:8761/eureka/
       server.port: 8080
+      bigfish.security.monitor.username: root
+      bigfish.security.monitor.password: root
+      bigfish.security.actuator.username: root
+      bigfish.security.actuator.password: root
     depends_on:
       - bigfish.registry
+
+  bigfish.auth:
+    image: bigfish-auth-server:1.0.0-SNAPSHOT
+    ports:
+      - "8801:8080"
+    container_name: bigfish.auth
+    hostname: bigfish.auth
+    restart: always
+    environment:
+      eureka.client.service-url.defaultZone: http://root:root@bigfish.registry:8761/eureka/
+      server.port: 8080
+      spring.cloud.config.discovery.service-id: bigfish_config
+      spring.cloud.config.username: root
+      spring.cloud.config.password: root
+    depends_on:
+      - bigfish.config
